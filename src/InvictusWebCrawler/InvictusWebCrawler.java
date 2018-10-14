@@ -1,9 +1,5 @@
 package InvictusWebCrawler;
 
-import InvictusFileIO.InvictusFileWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,15 +13,18 @@ public class InvictusWebCrawler implements Runnable {
   private final static Pattern FILTERS = Pattern.compile(".*(\\.(css|js"
       + "|zip|gz))$");
 
-  public static Queue<String> queue = new LinkedList<>();
+  private long depthOfCrawler = -1;
+
+  public static Queue<WebUrl> queue = new LinkedList<>();
   private static Set<String> marked = new HashSet<>();
   private String regex = "(?:^|)((ht|f)tp(s?):\\/\\/|www\\.)"
       + "(([\\w\\-]+\\.){1,}?([\\w\\-.~]+\\/?)*"
       + "[\\p{Alnum}.,%_=?&#\\-+()\\[\\]\\*$~@!:/{};']*)";
   private int number;
 
-  public InvictusWebCrawler(int number) {
+  public InvictusWebCrawler(int number, long depthOfCrawler) {
     this.number = number;
+    this.depthOfCrawler = depthOfCrawler;
     System.out.println("Web crawler " + this.number + " was created!");
   }
 
@@ -35,17 +34,21 @@ public class InvictusWebCrawler implements Runnable {
     System.out.println("Web crawler " + this.number + " is running!");
     try {
       while (!queue.isEmpty()) {
-        String crawledUrl = queue.poll();
-        marked.add(crawledUrl);
-        if (shouldVisit(crawledUrl)) {
-          System.out.println("site: " + crawledUrl + " is crawling ====");
+        WebUrl crawledUrl = queue.poll();
+        System.out.println("============= We are in the depth " + crawledUrl.getDepth()+" ============");
+        if (crawledUrl.getDepth() >= depthOfCrawler) {
+          System.out.println("=============== Match depth of crawler so crawler will stop!!!!! ===================");
+          return;
+        }
+        marked.add(crawledUrl.getUrl());
+          System.out.println("site: " + crawledUrl.getUrl() + " is crawling ====");
 
           boolean ok = false;
           URL url;
 
           while (!ok) {
             try {
-              url = new URL(crawledUrl);
+              url = new URL(crawledUrl.getUrl());
               br = new BufferedReader(new InputStreamReader(url.openStream()));
               ok = true;
             } catch (MalformedURLException e) {
@@ -72,16 +75,14 @@ public class InvictusWebCrawler implements Runnable {
 
           while (matcher.find()) {
             String w = matcher.group();
-            if (!marked.contains(w)) {
+            if (!marked.contains(w) && shouldVisit(w)) {
               marked.add(w);
               System.out.println("site add " + w);
-              queue.add(w);
+              queue.add(new WebUrl(crawledUrl.getDepth() + 1, w));
+            } else {
+              System.out.println("site: " + w + " won't be crawled because of your policy should visit or it's marked ====");
             }
           }
-        } else {
-          System.out.println("site: " + crawledUrl + " won't be crawled because of your policy should visit ====");
-        }
-
         if (br != null) {
           br.close();
         }
@@ -97,11 +98,11 @@ public class InvictusWebCrawler implements Runnable {
         && url.startsWith("https://vnexpress.net");
   }
 
-  public Queue<String> getQueue() {
+  public Queue<WebUrl> getQueue() {
     return queue;
   }
 
-  public void setQueue(Queue<String> queue) {
+  public void setQueue(Queue<WebUrl> queue) {
     this.queue = queue;
   }
 
@@ -121,4 +122,11 @@ public class InvictusWebCrawler implements Runnable {
     this.regex = regex;
   }
 
+  public long getDepthOfCrawler() {
+    return depthOfCrawler;
+  }
+
+  public void setDepthOfCrawler(long depthOfCrawler) {
+    this.depthOfCrawler = depthOfCrawler;
+  }
 }
