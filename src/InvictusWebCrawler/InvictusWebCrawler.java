@@ -14,27 +14,31 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class InvictusWebCrawler implements Runnable {
-  protected static final Logger logger = LoggerFactory.getLogger(InvictusWebCrawler.class);
+  private final static Pattern FILTERS = Pattern.compile(".*(\\.(css|js"
+      + "|zip|gz))$");
 
-  private Queue<String> queue = new LinkedList<>();
-  private Set<String> marked = new HashSet<>();
-  private String regex = "http[s]*://(\\w+\\.)*(\\w+)";
-  private String rootUrl;
+  public static Queue<String> queue = new LinkedList<>();
+  private static Set<String> marked = new HashSet<>();
+  private String regex = "(?:^|)((ht|f)tp(s?):\\/\\/|www\\.)"
+      + "(([\\w\\-]+\\.){1,}?([\\w\\-.~]+\\/?)*"
+      + "[\\p{Alnum}.,%_=?&#\\-+()\\[\\]\\*$~@!:/{};']*)";
+  private int number;
+
+  public InvictusWebCrawler(int number) {
+    this.number = number;
+    System.out.println("Web crawler " + this.number + " was created!");
+  }
 
   @Override
   public void run() {
-    while (true) {
-      queue.add(rootUrl);
-      BufferedReader br = null;
-
-      try {
-        while (!queue.isEmpty()) {
-          String crawledUrl = queue.poll();
-          System.out.println("site: " + crawledUrl + "====");
-
-          if (marked.size() > 100) {
-            return;
-          }
+    BufferedReader br = null;
+    System.out.println("Web crawler " + this.number + " is running!");
+    try {
+      while (!queue.isEmpty()) {
+        String crawledUrl = queue.poll();
+        marked.add(crawledUrl);
+        if (shouldVisit(crawledUrl)) {
+          System.out.println("site: " + crawledUrl + " is crawling ====");
 
           boolean ok = false;
           URL url;
@@ -45,11 +49,11 @@ public class InvictusWebCrawler implements Runnable {
               br = new BufferedReader(new InputStreamReader(url.openStream()));
               ok = true;
             } catch (MalformedURLException e) {
-              logger.error("MalformedURL" + crawledUrl + "====");
+              System.out.println("MalformedURL" + crawledUrl + "====");
               crawledUrl = queue.poll();
               ok = false;
             } catch (IOException e) {
-              logger.error("IOException url" + crawledUrl + "====");
+              System.out.println("IOException url" + crawledUrl + "====");
               crawledUrl = queue.poll();
               ok = false;
             }
@@ -70,20 +74,27 @@ public class InvictusWebCrawler implements Runnable {
             String w = matcher.group();
             if (!marked.contains(w)) {
               marked.add(w);
-              logger.error("site add" + w);
+              System.out.println("site add " + w);
               queue.add(w);
             }
           }
+        } else {
+          System.out.println("site: " + crawledUrl + " won't be crawled because of your policy should visit ====");
         }
 
         if (br != null) {
           br.close();
         }
-
-      } catch (Exception e) {
-        logger.error("Error when running job");
       }
+    } catch (Exception e) {
+      System.out.println("Error when running job");
     }
+
+  }
+
+  public boolean shouldVisit(String url) {
+    return !FILTERS.matcher(url).matches()
+        && url.startsWith("https://vnexpress.net");
   }
 
   public Queue<String> getQueue() {
@@ -108,14 +119,6 @@ public class InvictusWebCrawler implements Runnable {
 
   public void setRegex(String regex) {
     this.regex = regex;
-  }
-
-  public String getRootUrl() {
-    return rootUrl;
-  }
-
-  public void setRootUrl(String rootUrl) {
-    this.rootUrl = rootUrl;
   }
 
 }
