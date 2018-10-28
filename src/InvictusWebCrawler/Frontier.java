@@ -1,7 +1,6 @@
 package InvictusWebCrawler;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Frontier {
 
@@ -62,5 +61,9 @@ public class Frontier {
   public void returnUrlsToFrontier(List<WebUrl> urls)
   {
     this.urls.addAll(urls);
+  }
+
+  public void markUrl(String url) {
+    this.marked.add(url);
   }
 }

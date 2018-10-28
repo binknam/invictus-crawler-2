@@ -25,7 +25,7 @@ public class InvictusWebCrawlerControler {
   public void start() {
     final List<Thread> threads = new ArrayList<>();
     for (int i = 0; i < numberOfCrawler; i++) {
-      InvictusWebCrawler invictusWebCrawler = new InvictusWebCrawler(i + 1, depthOfCrawler, this);
+      InvictusWebCrawler invictusWebCrawler = new InvictusWebCrawler(i + 1, depthOfCrawler, root, this);
       Thread monitorThread = new Thread();
       invictusWebCrawler.setThread(monitorThread);
       monitorThread.start();
@@ -42,7 +42,7 @@ public class InvictusWebCrawlerControler {
       for (int i = 0; i < threads.size(); i++) {
         Thread tempThread = (Thread) threads.get(i);
         if (!tempThread.isAlive()) {
-          InvictusWebCrawler crawler = new InvictusWebCrawler(i + 1, depthOfCrawler, this);
+          InvictusWebCrawler crawler = new InvictusWebCrawler(i + 1, depthOfCrawler, root, this);
           tempThread = new Thread(crawler, "Crawler " + (i + 1));
           threads.remove(i);
           threads.add(i, tempThread);
