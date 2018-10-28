@@ -14,33 +14,58 @@ public class InvictusWebCrawler implements Runnable {
       + "|zip|gz))$");
 
   private long depthOfCrawler = -1;
-
-  public static Queue<WebUrl> queue = new LinkedList<>();
-  private static Set<String> marked = new HashSet<>();
+  private Frontier frontier;
   private String regex = "(?:^|)((ht|f)tp(s?):\\/\\/|www\\.)"
       + "(([\\w\\-]+\\.){1,}?([\\w\\-.~]+\\/?)*"
       + "[\\p{Alnum}.,%_=?&#\\-+()\\[\\]\\*$~@!:/{};']*)";
   private int number;
+  private List<WebUrl> notMarkedUrls = new ArrayList<WebUrl>();
+  private Thread invitctusThread;
 
-  public InvictusWebCrawler(int number, long depthOfCrawler) {
+  public InvictusWebCrawler(int number, long depthOfCrawler, InvictusWebCrawlerControler invictusWebCrawlerControler) {
     this.number = number;
     this.depthOfCrawler = depthOfCrawler;
+    this.frontier = invictusWebCrawlerControler.getFrontier();
     System.out.println("Web crawler " + this.number + " was created!");
   }
 
-  @Override
   public void run() {
+    while (true) {
+      boolean stoppedCrawler = ProcessCrawl();
+      if (stoppedCrawler) {
+        System.out.println("======= Crawler number " + this.number + " is stopping!!! ===========");
+        return;
+      }
+    }
+  }
+
+  public boolean ProcessCrawl() {
     BufferedReader br = null;
-    System.out.println("Web crawler " + this.number + " is running!");
-    try {
-      while (!queue.isEmpty()) {
-        WebUrl crawledUrl = queue.poll();
-        System.out.println("============= We are in the depth " + crawledUrl.getDepth()+" ============");
-        if (crawledUrl.getDepth() >= depthOfCrawler) {
-          System.out.println("=============== Match depth of crawler so crawler will stop!!!!! ===================");
-          return;
-        }
-        marked.add(crawledUrl.getUrl());
+    this.notMarkedUrls = frontier.getWebUrl(10);
+    Set<String> cralwerMarkedUrls = new HashSet<>();
+    if (notMarkedUrls.isEmpty()) {
+      if (frontier.isFinished()) {
+        return true;
+      }
+      try {
+        System.out.println("======= Crawler number " + this.number + " is waiting for new urls!!! ===========");
+        Thread.sleep(3000);
+      } catch (InterruptedException e) {
+        frontier.returnUrlsToFrontier(this.notMarkedUrls);
+        System.out.println("Error occurred ===== " + e);
+        return true;
+      }
+    } else {
+      try {
+        for (WebUrl crawledUrl : notMarkedUrls) {
+          System.out.println("============= The crawler number " + this.number + " is running ============");
+          System.out.println("============= We are in the depth " + crawledUrl.getDepth() + " ============");
+          if (crawledUrl.getDepth() >= depthOfCrawler) {
+            System.out.println(
+                "site: " + crawledUrl.getUrl() + " will not be crawled because its depth match max depth ====");
+            return false;
+          }
+          cralwerMarkedUrls.add(crawledUrl.getUrl());
           System.out.println("site: " + crawledUrl.getUrl() + " is crawling ====");
 
           boolean ok = false;
@@ -53,11 +78,9 @@ public class InvictusWebCrawler implements Runnable {
               ok = true;
             } catch (MalformedURLException e) {
               System.out.println("MalformedURL" + crawledUrl + "====");
-              crawledUrl = queue.poll();
               ok = false;
             } catch (IOException e) {
               System.out.println("IOException url" + crawledUrl + "====");
-              crawledUrl = queue.poll();
               ok = false;
             }
           }
@@ -75,22 +98,28 @@ public class InvictusWebCrawler implements Runnable {
 
           while (matcher.find()) {
             String w = matcher.group();
-            if (!marked.contains(w) && shouldVisit(w)) {
-              marked.add(w);
+            if (!frontier.getMarked().contains(w) && shouldVisit(w)) {
               System.out.println("site add " + w);
-              queue.add(new WebUrl(crawledUrl.getDepth() + 1, w));
+              frontier.addUrlToQueue(new WebUrl(crawledUrl.getDepth() + 1, w));
             } else {
-              System.out.println("site: " + w + " won't be crawled because of your policy should visit or it's marked ====");
+              System.out.println(
+                  "site: " + w + " won't be crawled because of your policy should visit or it's marked ====");
             }
           }
-        if (br != null) {
-          br.close();
+          if (br != null) {
+            br.close();
+          }
         }
+      } catch (Exception e) {
+        System.out.println("Error when running job");
       }
-    } catch (Exception e) {
-      System.out.println("Error when running job");
     }
-
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    return false;
   }
 
   public boolean shouldVisit(String url) {
@@ -98,20 +127,8 @@ public class InvictusWebCrawler implements Runnable {
         && url.startsWith("https://vnexpress.net");
   }
 
-  public Queue<WebUrl> getQueue() {
-    return queue;
-  }
-
-  public void setQueue(Queue<WebUrl> queue) {
-    this.queue = queue;
-  }
-
-  public Set<String> getMarked() {
-    return marked;
-  }
-
-  public void setMarked(Set<String> marked) {
-    this.marked = marked;
+  public void setThread(Thread thread) {
+    this.invitctusThread = thread;
   }
 
   public String getRegex() {
@@ -128,5 +145,21 @@ public class InvictusWebCrawler implements Runnable {
 
   public void setDepthOfCrawler(long depthOfCrawler) {
     this.depthOfCrawler = depthOfCrawler;
+  }
+
+  public Thread getInvitctusThread() {
+    return invitctusThread;
+  }
+
+  public void setInvitctusThread(Thread invitctusThread) {
+    this.invitctusThread = invitctusThread;
+  }
+
+  public List<WebUrl> getNotMarkedUrls() {
+    return notMarkedUrls;
+  }
+
+  public int getNumber() {
+    return number;
   }
 }
