@@ -13,10 +13,6 @@ public class WebUrl {
     return depth;
   }
 
-  public void setDepth(long depth) {
-    this.depth = depth;
-  }
-
   public String getUrl() {
     return url;
   }

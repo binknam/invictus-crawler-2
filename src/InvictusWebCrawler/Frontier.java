@@ -9,14 +9,6 @@ public class Frontier {
 
   private boolean isFinished;
 
-  public void setQueue(List<WebUrl> queue) {
-    this.urls = queue;
-  }
-
-  public void setMarked(Set<String> marked) {
-    this.marked = marked;
-  }
-
   public Frontier(List<WebUrl> queue, Set<String> marked) {
     this.urls = queue;
     this.marked = marked;
@@ -65,5 +57,14 @@ public class Frontier {
 
   public void markUrl(String url) {
     this.marked.add(url);
+  }
+
+  public boolean isContainedUrl(String url) {
+    for (WebUrl webUrl: urls) {
+      if (webUrl.getUrl().equals(url)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
