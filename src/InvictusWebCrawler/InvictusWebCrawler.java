@@ -1,15 +1,12 @@
 package InvictusWebCrawler;
 
 import InvictusFileIO.InvictusFileWriter;
-import org.jsoup.Connection;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class InvictusWebCrawler implements Runnable {
@@ -25,6 +22,14 @@ public class InvictusWebCrawler implements Runnable {
   private InvictusFileWriter invictusFileWriter;
   private RobotTxt robotTxt;
   private long timeToDelay;
+  private InvictusFetcher fetcher;
+  private static final String regex = "(?:^|)((ht|f)tp(s?):\\/\\/|www\\.)"
+      + "(([\\w\\-]+\\.){1,}?([\\w\\-.~]+\\/?)*"
+      + "[\\p{Alnum}.,%_=?&#\\-+()\\[\\]\\*$~@!:/{};']*)";
+  private static final Pattern TITLE_TAG =
+      Pattern.compile("\\<title>(.*)\\</title>", Pattern.CASE_INSENSITIVE|Pattern.DOTALL);
+  private static final Pattern HREF_TAG =
+      Pattern.compile("href=\"(.*?)\"", Pattern.CASE_INSENSITIVE|Pattern.DOTALL);
 
   public InvictusWebCrawler(int number, long depthOfCrawler, String root,
       InvictusWebCrawlerControler invictusWebCrawlerControler) {
@@ -34,7 +39,8 @@ public class InvictusWebCrawler implements Runnable {
     this.invictusFileWriter = new InvictusFileWriter();
     this.root = root;
     this.robotTxt = invictusWebCrawlerControler.getRobotTxt();
-    this.timeToDelay = invictusWebCrawlerControler.getNumberOfCrawler() * 200;
+    this.timeToDelay = invictusWebCrawlerControler.getNumberOfCrawler() * 300;
+    this.fetcher = invictusWebCrawlerControler.getFetcher();
     System.out.println("Web crawler " + this.number + " was created!");
   }
 
@@ -49,7 +55,7 @@ public class InvictusWebCrawler implements Runnable {
   }
 
   public boolean ProcessCrawl() {
-    Document document;
+    BufferedReader br = null;
     this.notMarkedUrls = frontier.getWebUrl(10);
     if (notMarkedUrls.isEmpty()) {
       if (frontier.isFinished()) {
@@ -57,7 +63,7 @@ public class InvictusWebCrawler implements Runnable {
       }
       try {
         System.out.println("======= Crawler number " + this.number + " is waiting for new urls!!! ===========");
-        Thread.sleep(3000);
+        Thread.sleep(5000);
       } catch (InterruptedException e) {
         frontier.returnUrlsToFrontier(this.notMarkedUrls);
         System.out.println("Error occurred ===== " + e);
@@ -65,35 +71,24 @@ public class InvictusWebCrawler implements Runnable {
       }
     } else {
       try {
+
         for (WebUrl crawledUrl : notMarkedUrls) {
           if (crawledUrl.getDepth() > depthOfCrawler) {
             System.out.println(
                 this.invitctusThread.getName() + " === " + crawledUrl.getUrl()
                     + " will not be crawled because its depth matches max depth ====");
-            return false;
+            continue;
           }
+          this.notMarkedUrls.remove(crawledUrl);
           this.frontier.markUrl(crawledUrl.getUrl());
 
           boolean ok = false;
 
           while (!ok) {
             try {
-              Connection jsoupParser = Jsoup.connect(crawledUrl.getUrl());
-              Map<String, String> headers = new HashMap<>();
-              headers.put("User-Agent", "invictus");
-              headers.put("From", "namvtran.bink@gmail.com");
-              jsoupParser.headers(headers);
-              document = jsoupParser.get();
-
-              Elements links = document.body().select("a[href]");
-
-              this.searchLinks(links, crawledUrl);
-
-              this.visit(document, crawledUrl.getUrl(), crawledUrl.getDepth());
+              br = fetcher.getBufferedReaderFromUrl(crawledUrl.getUrl());
 
               ok = true;
-
-              Thread.sleep(timeToDelay);
             } catch (MalformedURLException e) {
               System.out.println(this.invitctusThread.getName() + " MalformedURL" + crawledUrl.getUrl() + "====");
               ok = false;
@@ -102,41 +97,78 @@ public class InvictusWebCrawler implements Runnable {
               ok = true;
             }
           }
+
+          StringBuilder sb = new StringBuilder();
+          String data;
+
+          while ((data = br.readLine()) != null) {
+            sb.append(data);
+          }
+
+          data = sb.toString();
+
+          Matcher matcher = TITLE_TAG.matcher(data);
+          String title = matcher.find() ? matcher.group(1).replaceAll("[\\s\\<>]+", " ").trim() : "Untitled";
+          String htmlInbody = data.substring(data.indexOf("<body"), data.lastIndexOf("</body>"));
+          String text = htmlInbody.replaceAll("\\<.*?>","");
+
+          Matcher matcherHREF = HREF_TAG.matcher(data);
+
+          this.searchLinks(matcherHREF, crawledUrl);
+          this.visit(title, text, data, crawledUrl.getUrl());
+
+          Thread.sleep(timeToDelay);
         }
       } catch (Exception e) {
-        System.out.println(this.invitctusThread.getName() + " Error when running job");
+        frontier.returnUrlsToFrontier(this.notMarkedUrls);
+        System.out.println(this.invitctusThread.getName() + " Error when running job" + e);
       }
     }
     return false;
   }
 
-  public void visit(Document doc, String url, long depth) {
-    String title = doc.title();
-    String html = doc.html();
-    String text = doc.body().text();
-
+  public void visit(String title, String text, String html, String url) {
     if (text.length() == 0) {
       System.out.println(
           this.invitctusThread.getName() + " " + url + " will not be stored because it doesn't have text data =====");
       return;
     }
 
-    System.out.println(this.invitctusThread.getName() + " site: " + url + " is being crawled in depth " + depth + " ====");
-
     invictusFileWriter.writeWebPageHtml(html, title);
     invictusFileWriter.writeWebPageText(text, title);
+    System.out.println(this.invitctusThread.getName() + " === visited url title: " + title );
   }
 
-  public void searchLinks(Elements links, WebUrl crawledUrl) {
-    for (Element link : links) {
-      String url = link.attr("href");
-      if (url.length() < 256 && robotTxt.allowedUrl(url)) {
-        if (url.startsWith("/") && !url.startsWith("//")) {
+  public void searchLinks(Matcher matcher, WebUrl crawledUrl) {
+    while (matcher.find()) {
+      String url = matcher.group();
+      url = url.substring(6, url.length() - 1);
+
+      if (url.length() < 500 && robotTxt.allowedUrl(url)) {
+        if (url.startsWith("/") && !url.startsWith("//") && url.length() != 1) {
           url = this.root + url;
         }
-        if (!frontier.getMarked().contains(url) && shouldVisit(url) && !frontier.isContainedUrl(url)) {
+        boolean addedUrl = false;
+        if (!frontier.getMarked().contains(url) && shouldVisit(url) && !url.equals(root + "/")) {
+          WebUrl webUrl1 = new WebUrl(crawledUrl,crawledUrl.getDepth() +1, url);
+          WebUrl webUrl2 = frontier.isContainedUrl(url);
+          if (webUrl2 != null) {
+            if (webUrl1.getParent() != null && webUrl2.getParent() != null) {
+              if (webUrl1.getParent().getDepth() < webUrl2.getParent().getDepth()) {
+                frontier.addUrlToQueue(webUrl1);
+                this.frontier.markUrl(crawledUrl.getUrl());
+                addedUrl = true;
+              }
+            }
+          } else {
+            frontier.addUrlToQueue(webUrl1);
+            this.frontier.markUrl(crawledUrl.getUrl());
+            addedUrl = true;
+          }
+        }
+
+        if (addedUrl) {
           System.out.println(this.invitctusThread.getName() + " site add " + url);
-          frontier.addUrlToQueue(new WebUrl(crawledUrl.getDepth() + 1, url));
         } else {
           System.out.println(
               this.invitctusThread.getName() + " === " + url

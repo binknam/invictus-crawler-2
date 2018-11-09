@@ -6,12 +6,14 @@ public class Frontier {
 
   private List<WebUrl> urls;
   private Set<String> marked;
+  private long numberOfCrawlers;
 
   private boolean isFinished;
 
-  public Frontier(List<WebUrl> queue, Set<String> marked) {
+  public Frontier(List<WebUrl> queue, Set<String> marked, long numberOfCrawlers) {
     this.urls = queue;
     this.marked = marked;
+    this.numberOfCrawlers = numberOfCrawlers;
   }
 
   public Set<String> getMarked() {
@@ -25,17 +27,13 @@ public class Frontier {
   public List<WebUrl> getWebUrl(long maxNumber)
   {
     List<WebUrl> results = new ArrayList<WebUrl>();
-    int i = 0;
-    while (urls.iterator().hasNext() && i < maxNumber) {
+    long size  = Math.min(maxNumber, urls.size());
+    for (long i = 0; i < size; i++) {
       WebUrl webUrl = urls.iterator().next();
       results.add(webUrl);
       urls.remove(webUrl);
-      i++;
     }
-    if (!results.isEmpty())
-      return results;
-    else
-      return Collections.EMPTY_LIST;
+    return results;
   }
 
   public void setFinished(boolean finished) {
@@ -59,12 +57,12 @@ public class Frontier {
     this.marked.add(url);
   }
 
-  public boolean isContainedUrl(String url) {
+  public WebUrl isContainedUrl(String url) {
     for (WebUrl webUrl: urls) {
       if (webUrl.getUrl().equals(url)) {
-        return true;
+        return webUrl;
       }
     }
-    return false;
+    return null;
   }
 }
