@@ -5,7 +5,7 @@ public class main {
     InvictusWebCrawlerControler invictusWebCrawlerControler = null;
     try {
       invictusWebCrawlerControler = new InvictusWebCrawlerControler("https://vnexpress.net",
-          7, 1);
+          7, 2);
     } catch (Exception e) {
       System.out.println("Error when create controller" + e);
     }

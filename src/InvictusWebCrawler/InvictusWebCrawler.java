@@ -27,9 +27,9 @@ public class InvictusWebCrawler implements Runnable {
       + "(([\\w\\-]+\\.){1,}?([\\w\\-.~]+\\/?)*"
       + "[\\p{Alnum}.,%_=?&#\\-+()\\[\\]\\*$~@!:/{};']*)";
   private static final Pattern TITLE_TAG =
-      Pattern.compile("\\<title>(.*)\\</title>", Pattern.CASE_INSENSITIVE|Pattern.DOTALL);
+      Pattern.compile("\\<title>(.*)\\</title>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
   private static final Pattern HREF_TAG =
-      Pattern.compile("href=\"(.*?)\"", Pattern.CASE_INSENSITIVE|Pattern.DOTALL);
+      Pattern.compile("href=\"(.*?)\"", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
   public InvictusWebCrawler(int number, long depthOfCrawler, String root,
       InvictusWebCrawlerControler invictusWebCrawlerControler) {
@@ -39,7 +39,7 @@ public class InvictusWebCrawler implements Runnable {
     this.invictusFileWriter = new InvictusFileWriter();
     this.root = root;
     this.robotTxt = invictusWebCrawlerControler.getRobotTxt();
-    this.timeToDelay = invictusWebCrawlerControler.getNumberOfCrawler() * 300;
+    this.timeToDelay = invictusWebCrawlerControler.getNumberOfCrawler() * 50;
     this.fetcher = invictusWebCrawlerControler.getFetcher();
     System.out.println("Web crawler " + this.number + " was created!");
   }
@@ -56,7 +56,7 @@ public class InvictusWebCrawler implements Runnable {
 
   public boolean ProcessCrawl() {
     BufferedReader br = null;
-    this.notMarkedUrls = frontier.getWebUrl(10);
+    this.notMarkedUrls = frontier.getWebUrl(50);
     if (notMarkedUrls.isEmpty()) {
       if (frontier.isFinished()) {
         return true;
@@ -79,7 +79,6 @@ public class InvictusWebCrawler implements Runnable {
                     + " will not be crawled because its depth matches max depth ====");
             continue;
           }
-          this.notMarkedUrls.remove(crawledUrl);
           this.frontier.markUrl(crawledUrl.getUrl());
 
           boolean ok = false;
@@ -110,13 +109,14 @@ public class InvictusWebCrawler implements Runnable {
           Matcher matcher = TITLE_TAG.matcher(data);
           String title = matcher.find() ? matcher.group(1).replaceAll("[\\s\\<>]+", " ").trim() : "Untitled";
           String htmlInbody = data.substring(data.indexOf("<body"), data.lastIndexOf("</body>"));
-          String text = htmlInbody.replaceAll("\\<.*?>","");
+          String text = htmlInbody.replaceAll("\\<.*?>", "");
 
           Matcher matcherHREF = HREF_TAG.matcher(data);
 
           this.searchLinks(matcherHREF, crawledUrl);
           this.visit(title, text, data, crawledUrl.getUrl());
 
+          this.notMarkedUrls.remove(crawledUrl);
           Thread.sleep(timeToDelay);
         }
       } catch (Exception e) {
@@ -136,7 +136,7 @@ public class InvictusWebCrawler implements Runnable {
 
     invictusFileWriter.writeWebPageHtml(html, title);
     invictusFileWriter.writeWebPageText(text, title);
-    System.out.println(this.invitctusThread.getName() + " === visited url title: " + title );
+    System.out.println(this.invitctusThread.getName() + " === visited url title: " + title);
   }
 
   public void searchLinks(Matcher matcher, WebUrl crawledUrl) {
@@ -148,32 +148,15 @@ public class InvictusWebCrawler implements Runnable {
         if (url.startsWith("/") && !url.startsWith("//") && url.length() != 1) {
           url = this.root + url;
         }
-        boolean addedUrl = false;
+
         if (!frontier.getMarked().contains(url) && shouldVisit(url) && !url.equals(root + "/")) {
-          WebUrl webUrl1 = new WebUrl(crawledUrl,crawledUrl.getDepth() +1, url);
-          WebUrl webUrl2 = frontier.isContainedUrl(url);
-          if (webUrl2 != null) {
-            if (webUrl1.getParent() != null && webUrl2.getParent() != null) {
-              if (webUrl1.getParent().getDepth() < webUrl2.getParent().getDepth()) {
-                frontier.addUrlToQueue(webUrl1);
-                this.frontier.markUrl(crawledUrl.getUrl());
-                addedUrl = true;
-              }
-            }
-          } else {
-            frontier.addUrlToQueue(webUrl1);
-            this.frontier.markUrl(crawledUrl.getUrl());
-            addedUrl = true;
+          WebUrl webUrl = new WebUrl(crawledUrl, crawledUrl.getDepth() + 1, url);
+          if (webUrl.getDepth() <= depthOfCrawler) {
+            this.frontier.addUrlToQueue(webUrl);
+            System.out.println(this.invitctusThread.getName() + " site add " + url);
           }
         }
 
-        if (addedUrl) {
-          System.out.println(this.invitctusThread.getName() + " site add " + url);
-        } else {
-          System.out.println(
-              this.invitctusThread.getName() + " === " + url
-                  + " won't be crawled because of your policy should visit or it's marked ====");
-        }
       } else {
         System.out.println("site: " + url + "won't be crawled because its length is over size ====");
       }
